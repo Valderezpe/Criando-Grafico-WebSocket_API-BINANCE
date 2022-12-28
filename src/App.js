@@ -1,12 +1,13 @@
 import { useEffect,useState } from "react";
 import Chart from "./Chart";
+import Candle from "./Candle";
 import { getCandles } from "./DataService";
+import { useWebSocket } from "react-use-websocket";
 
 function App() {
 
   const [symbol, setSymbol]= useState('BTCUSDT');
   const [interval, setInterval]= useState('1m');
-
   const [data, setData] = useState([]);
 
   useEffect(() =>{
@@ -15,6 +16,28 @@ function App() {
     .then(data => setData(data))
     .catch(err => alert(err.response ? err.response.data : err.message))
   }, [symbol, interval])
+
+  const { lastJsonMessage } = useWebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@api_${interval}`,{
+  onOpen: () => console.log('connect to binance'),
+  onError: (err) => console.error(err),
+  shouldReconnect: () => true,
+  reconnectInterval: 3000,
+  onMessage: ()=>{
+    if(lastJsonMessage){
+      const newCandle = new Candle(lastJsonMessage.k.t, lastJsonMessage.k.o, lastJsonMessage.k.h, lastJsonMessage.k.l, lastJsonMessage.k.c);
+      const newData = [...data];
+
+      if(lastJsonMessage.k.x === false){
+          newData[newData.length - 1] = newCandle;
+      }
+      else{
+        newData.splice(0,1);
+        newData.push(newCandle);
+      }
+    }
+  }
+
+})
 
   function onSymbolChange(event) {
     setSymbol(event.target.value)
